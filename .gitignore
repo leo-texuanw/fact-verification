@@ -1,0 +1,123 @@
+########
+#  OS  #
+########
+### Windows
+# Windows thumbnail cache files
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+
+#### Linix
+*~
+# temporary files which can be created if a process still has a handle open of a deleted file
+.fuse_hidden*
+
+# KDE directory preferences
+.directory
+
+# Linux trash folder which might appear on any partition or disk
+.Trash-*
+
+# .nfs files are created when an open file is removed but is still being accessed
+.nfs*
+
+##########
+# Editor #
+##########
+### Vim
+# swap
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-v][a-z]
+[._]sw[a-p]
+# session
+Session.vim
+# temporary
+.netrwhist
+*~
+# auto-generated tag files
+tags
+
+########
+# Lang #
+########
+### C/C++
+*.out
+
+### Java
+*.class
+
+### Erlang
+.eunit
+deps
+*.o
+*.beam
+*.plt
+erl_crash.dump
+ebin/*.beam
+rel/example_project
+.concrete/DEV_MODE
+.rebar
+
+### Elixir
+/cover
+/doc
+/.fetch
+*.ez
+*.beam
+# App artifacts
+/_build
+/db
+/deps
+/*.ez
+# Generated on crash by the VM
+erl_crash.dump
+# Generated on crash by NPM
+npm-debug.log
+
+### Haskell
+*.hi
+*.o
+
+### Python
+__pycache__
+
+#############
+# Framework #
+############
+### Phoenix
+/config/*.secret.exs
+# Static artifacts
+/assets/node_modules
+
+# Since we are building assets from assets/,
+# we ignore priv/static. You may want to comment
+# this depending on your deployment strategy.
+/priv/static/
+
+############
+# Personal #
+############
+.Db_Store
+log
+*.secret.*
+.DS_Store
+
+wiki-pages-text/
+wiki-pages-text.zip
