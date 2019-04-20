@@ -121,3 +121,5 @@ log
 
 wiki-pages-text/
 wiki-pages-text.zip
+.ipynb_checkpoints/
+*.pkl
