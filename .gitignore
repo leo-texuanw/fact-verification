@@ -125,3 +125,5 @@ wiki-pages-text.zip
 *.pkl
 /objects
 test.ipynb
+processed_wiki/
+similarity_corpus
