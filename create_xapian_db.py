@@ -24,7 +24,7 @@ def create_full_text(sentence_info):
 	""" Takes in a list of [(sentence -> id)] and combines all the 
 	strings together to get the full text of a document.
 	"""
-	return ''.join(map(lambda x: x[0], sentence_info))
+	return ''.join(map(lambda x: x[1], sentence_info))
 
 def add_new_entry(db, sentence_info, title, docid):
 	# make a new document.
@@ -82,8 +82,7 @@ with closing(_x.WritableDatabase('./xdb/test_wiki.db',
 					current_title = title
 					sentence_info = []
 
-				sentence_info.append((sentence, int(sentence_id)))
-
+				sentence_info.append((int(sentence_id), sentence))
 		print(data_file, "is complete!")
 
 print("took", time.time() - start, "seconds to finish")
