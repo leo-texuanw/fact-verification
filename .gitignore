@@ -127,3 +127,6 @@ wiki-pages-text.zip
 test.ipynb
 processed_wiki/
 similarity_corpus
+processed_wiki_glove/
+running_output/
+tools/
