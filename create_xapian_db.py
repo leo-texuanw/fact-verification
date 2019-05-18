@@ -1,88 +1,127 @@
+"""
+ we want our doc to contain title, terms, {sentence_id -> sentence}
+ 1. We start with a blank title.
+ 2. If we encounter a new title, we add a tuple (sentence_id, sentence)
+    to some empty list.
+ 3. While we keep seeing the same title, we keep appending.
+ 4. When we see a new title, we have to take that list and use it
+    to add a new entry into our db. We take every sentence and combine
+    them to form some text. Then we use the list to make a dict.
+    Our document object must have title, that dict, and whole text.
+ 5. If there are more lines, then we repeat steps 2-3 with
+    our new title.
+"""
 
-import xapian as _x
+import errno
 import json
 import os
+from os.path import join
+from time import time
+
 from contextlib import closing
+import xapian
 from tqdm import tqdm
-import time
 
 
-DIR = './wiki-pages-text/'
-DATA_FILES = os.listdir(DIR)
-# we want our doc to contain title, terms, {sentence -> id}
-# 1. We start with a blank title. 
-# 2. If we encounter a new title, we add a tuple (sentence, sentence_id)
-#    to some empty list. 
-# 3. While we keep seeing the same title, we keep appending. 
-# 4. When we see a new title, we have to take that list and use it
-#    to add a new entry into our db. We take every sentence and combine
-#    them to form some text. Then we use the list ot make a dict.
-#    Our document object must have title, that dict, and whole text. 
-# 5. If there are more lines, then we repeat steps 2-3 with
-#    our new title.
 def create_full_text(sentence_info):
-	""" Takes in a list of [(sentence -> id)] and combines all the 
-	strings together to get the full text of a document.
-	"""
-	return ''.join(map(lambda x: x[1], sentence_info))
+    """ Takes in a list of [(id -> sentence)] and combines all the
+    strings together to get the full text of a document.
+    """
+    return ' '.join(map(lambda x: x[1], sentence_info))
+
 
 def add_new_entry(db, sentence_info, title, docid):
-	# make a new document.
-	x_doc = _x.Document()
+    title_terms = title.replace('_', ' ')
 
-	# setup indexer
-	indexer = _x.TermGenerator()
-	indexer.set_stemmer(_x.Stem("english"))
-	indexer.set_document(x_doc)
+    # make a new document.
+    x_doc = xapian.Document()
 
-	# index terms
-	text = create_full_text(sentence_info)
-	indexer.index_text(text)
+    # setup indexer
+    indexer = xapian.TermGenerator()
+    indexer.set_stemmer(xapian.Stem("english"))
+    indexer.set_document(x_doc)
 
-	# store the title, text and sentence_dictionary (id -> sentence)
-	# into the data blob
-	data_blob = {}
-	data_blob['title'] = title
-	data_blob['sentences'] = dict(sentence_info)
-	x_doc.set_data(json.dumps(data_blob))
-	
-	#save
-	db.replace_document(docid, x_doc)
+    # Index each field with a suitable prefix.
+    text = create_full_text(sentence_info)
+    indexer.index_text(title_terms, 1, 'S')
+    indexer.index_text(text, 1, 'XT')
 
-start = time.time()
-current_title = ""
-sentence_info = []
-curr_docid = 1
+    # index terms
+    indexer.index_text(title_terms)
+    indexer.increase_termpos()
+    indexer.index_text(text)
 
-# try to make a db in pwd
-os.mkdir('./xdb/')
+    # store the title, text and sentence_dictionary (id -> sentence)
+    # into the data blob
+    data_blob = {}
+    data_blob['title'] = title
+    data_blob['title_terms'] = title_terms
+    data_blob['sentences'] = dict(sentence_info)
+    x_doc.set_data(json.dumps(data_blob))
 
-with closing(_x.WritableDatabase('./xdb/test_wiki.db',
-                                 _x.DB_CREATE_OR_OPEN)) as x_db:
-	# TODO: will need to modify it to go through every text file.
-	for data_file in DATA_FILES:
-		with open(os.path.join(DIR, data_file), 'r', encoding = "utf-8") as f:
-			lines = f.readlines()
-			for line in lines:
-				title, sentence_id, sentence = line.split(' ', 2)
-				if not sentence_id.isdigit():
-					continue
-				sentence = sentence.strip('\n')
+    # save
+    db.replace_document(docid, x_doc)
 
-				# if first title, then change current title. 
-				if current_title == "":
-					current_title = title
 
-				if title != current_title:
-					# code that will add new entry into our db.
-					add_new_entry(x_db, sentence_info, title, curr_docid)
-					curr_docid += 1
+def permanentize_file(x_db, path, data_file, curr_docid):
+    current_title = ""
+    sentence_info = []
 
-					# code that resets some variables for the next document.
-					current_title = title
-					sentence_info = []
+    with open(join(path, data_file), 'r', encoding="utf-8") as f:
+        lines = f.readlines()
 
-				sentence_info.append((int(sentence_id), sentence))
-		print(data_file, "is complete!")
+        for line in lines:
+            title, sentence_id, sentence = line.strip('\n').split(' ', 2)
 
-print("took", time.time() - start, "seconds to finish")
+            if not sentence_id.isdigit():  # skip some incorret lines
+                continue
+
+            # if first title, then change current title.
+            if not current_title:
+                current_title = title
+
+            if title != current_title:
+                # code that will add new entry into our db.
+                add_new_entry(x_db, sentence_info, title, curr_docid)
+
+                # code that resets some variables for the next document.
+                curr_docid += 1
+                current_title = title
+                sentence_info = []
+
+            sentence_info.append((int(sentence_id), sentence))
+
+        if sentence_info:
+            add_new_entry(x_db, sentence_info, title, curr_docid)
+            curr_docid += 1
+
+    print(data_file, "is complete!")
+    return curr_docid
+
+
+if __name__ == '__main__':
+    CORPUS_DIR = './wiki-pages-text/'
+    DATA_FILES = os.listdir(CORPUS_DIR)
+    DB_PATH = './xdb/'
+
+    # try to make a db in pwd
+    try:
+        os.mkdir(DB_PATH)
+        print("create dir", DB_PATH)
+    except (OSError, IOError) as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+    START = time()
+    with closing(xapian.WritableDatabase(
+            join(DB_PATH, 'wiki.db'),
+            xapian.DB_CREATE_OR_OPEN)
+    ) as x_db:
+
+        curr_docid = 1
+        for data_file in tqdm(DATA_FILES):
+            if not data_file.endswith('.txt'):
+                continue
+            curr_docid = permanentize_file(x_db, CORPUS_DIR, data_file, curr_docid)
+
+    print("took", time() - START, "seconds to finish")
