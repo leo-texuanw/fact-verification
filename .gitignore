@@ -118,6 +118,7 @@ __pycache__
 log
 *.secret.*
 .DS_Store
+*.log
 
 wiki-pages-text/
 wiki-pages-text.zip
@@ -130,3 +131,6 @@ similarity_corpus
 processed_wiki_glove/
 running_output/
 tools/
+xdb/
+bert/
+
