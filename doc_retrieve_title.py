@@ -5,8 +5,8 @@ from os.path import join
 import re
 import json
 import pickle
+from time import time
 
-from tqdm import tqdm
 from difflib import SequenceMatcher
 
 from allennlp.models.archival import load_archive
@@ -14,27 +14,24 @@ from allennlp.predictors import Predictor
 
 
 def get_predictor():
+    """ Example:
+        predictor = get_predictor()
+        sentence = "Nikolaj Coster-Waldau worked with the Fox Broadcasting Company."
+        result = predictor.predict_json({"sentence": sentence})
+
+        print(result.keys()) # useful: 'pos_tags', 'tokens', 'hierplane_tree'
+
+        print(result['hierplane_tree']['root'])
+        # keys of result['hierplane_tree']['root']:
+        #    ['word', 'nodeType', 'attributes', 'link', 'children']
+
+        for child in result['hierplane_tree']['root']['children']:
+            print(child)
+    """
     archive = load_archive(
         "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo-constituency-parser-2018.03.14.tar.gz")
 
     return Predictor.from_archive(archive, 'constituency-parser')
-
-
-# # Trying
-# sentence = "Nikolaj Coster-Waldau worked with the Fox Broadcasting Company."
-# result = predictor.predict_json({"sentence": sentence})
-#
-# print(result.keys())
-# pos_tags = result['pos_tags']
-# print(pos_tags)
-# tokens = result['tokens']
-# print(tokens)
-#
-# print(result['hierplane_tree']['root'])
-# # keys of result['hierplane_tree']['root']: ['word', 'nodeType', 'attributes', 'link', 'children']
-# for child in result['hierplane_tree']['root']['children']:
-#     print(child)
-
 
 
 def title_without_parentheses(title):
@@ -45,28 +42,33 @@ def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
 
 
-def get_NPs(parse_result):
+def get_constituency_parsing_NPs(parse_result, join_with="_", NPs=set()):
     # TODO: 
     # 1. everything before verb as a NP
     # 2. deal with different encoding
 
-    NPs, NP = set(), []
-    ignore_list = ['-LRB-', '-RRB-']
+    NP = []
 
     # by hierplane_tree
     hierplane_tree_children = parse_result['hierplane_tree']['root']['children']
     for child in hierplane_tree_children:
-        if child['nodeType'] in ['NP', 'HYPH'] :
+        if child['nodeType'] in ['NP', 'HYPH']:
             NP += child['word'].split()
         elif NP:
-            NPs.add("_".join(NP))
+            NPs.add(join_with.join(NP))
             NP = []
 
     if NP:
-        NPs.add("_".join(NP))
-        NP = []
+        NPs.add(join_with.join(NP))
 
-    # by customised rules
+    return NPs
+
+
+def get_customised_NPs(parse_result, join_with="_", NPs=set()):
+    """ get NPs by customised rules according to POS """
+
+    ignore_list = ['-LRB-', '-RRB-']
+    NP = []
     pos_tags = parse_result['pos_tags']
     tokens = parse_result['tokens']
 
@@ -76,10 +78,15 @@ def get_NPs(parse_result):
         elif tag in ignore_list:
             NP.append(tag)
         elif NP:
-            NPs.add("_".join(NP))
+            NPs.add(join_with.join(NP))
             NP = []
 
-    return list(map(lambda NP: re.sub('_-_', '-', NP), NPs))
+    if NP:
+        NPs.add(join_with.join(NP))
+
+    if join_with == "_":
+        NPs = list(map(lambda NP: re.sub('_-_', '-', NP), NPs))
+    return NPs
 
 
 def load_titles(path, f_title):
@@ -101,7 +108,7 @@ def load_titles(path, f_title):
     return titles
 
 
-def result_stat(evidence, NPs, parse_result, found_evidence):
+def result_stat(evidence, NPs, found_evidence):
     missing = []
     matched_titles = []
     for evi in evidence:
@@ -127,21 +134,23 @@ def log_missing(missing):
         print('    POS:', parse_result['pos_tags'])
 
 
-def log_performance(index, true_evidence, found_evidence, total_evidence):
+def log_performance(index, true_evidence, found_evidence, predicted_evidence):
     print(index, ":")
-    print(true_evidence, found_evidence, total_evidence)
+    print(true_evidence, found_evidence, predicted_evidence)
     print("accuracy:", found_evidence / true_evidence)
-    print("recall:", found_evidence / total_evidence)
+    print("recall:", found_evidence / predicted_evidence)
 
 
 DIR = './objects'
 TITLES = 'titles_gensim_70.pkl'
 DATA_SET = './devset.json'
-OUTPUT_FILE = './output_devset.json'
+OUTPUT_FILE = './output_devset_title.json'
 
 
 if __name__ == '__main__':
     """ Calc doc retrieval accuracy """
+
+    start = time()
 
     titles = load_titles(DIR, TITLES)
     predictor = get_predictor()
@@ -149,32 +158,37 @@ if __name__ == '__main__':
     with open(DATA_SET, 'r') as data_set_f:
         data_set = json.load(data_set_f)
 
-    found_evidence, total_evidence, true_evidence = 0, 0, 0
+    found_evidence, predicted_evidence, true_evidence = 0, 0, 0
     output_content, index = {}, 1
-    for _id, record in data_set.items():
+    for id_, record in data_set.items():
         evidence = list(map(lambda x: x[0], record['evidence']))
         true_evidence += len(evidence)
 
         parse_result = predictor.predict_json({"sentence": record['claim']})
-        NPs = get_NPs(parse_result)
+        NPs = get_constituency_parsing_NPs(parse_result)
+        NPs = get_customised_NPs(parse_result, NPs=NPs)
 
         found_evidence, matched_titles, missing = result_stat(evidence,
                                                               NPs,
-                                                              parse_result,
                                                               found_evidence)
-        total_evidence += len(matched_titles)
+        predicted_evidence += len(matched_titles)
         # TODO: sentence selection
         record['evidence'] = [[title, 0] for title in matched_titles]
-        output_content[_id] = record
+        output_content[id_] = record
         log_missing(missing)
 
         if index % 500 == 0:
-            log_performance(index, true_evidence, found_evidence, total_evidence)
+            log_performance(index,
+                            true_evidence,
+                            found_evidence,
+                            predicted_evidence)
         index += 1
 
+    print("doc retrieval with titles takes",
+          time() - start,
+          "seconds except writ results down")
+
     with open(OUTPUT_FILE, 'w') as output_file:
-        output_file.write(
-            json.dumps(output_content),
-            indent=2,
-            separators=(',')
-        )
+        output_file.write(json.dumps(output_content))
+
+
