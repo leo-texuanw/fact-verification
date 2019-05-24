@@ -31,7 +31,7 @@ def create_full_text(sentence_info):
 
 
 def add_new_entry(db, sentence_info, title, docid):
-    title_terms = title.replace('_', ' ')
+    title_tokens = title.replace('_', ' ')
 
     # make a new document.
     x_doc = xapian.Document()
@@ -43,11 +43,12 @@ def add_new_entry(db, sentence_info, title, docid):
 
     # Index each field with a suitable prefix.
     text = create_full_text(sentence_info)
-    indexer.index_text(title_terms, 1, 'S')
+    indexer.index_text(title_tokens, 1, 'S')
+    indexer.index_text(title, 1, 'XS')
     indexer.index_text(text, 1, 'XT')
 
     # index terms
-    indexer.index_text(title_terms)
+    indexer.index_text(title_tokens)
     indexer.increase_termpos()
     indexer.index_text(text)
 
@@ -55,7 +56,6 @@ def add_new_entry(db, sentence_info, title, docid):
     # into the data blob
     data_blob = {}
     data_blob['title'] = title
-    data_blob['title_terms'] = title_terms
     data_blob['sentences'] = dict(sentence_info)
     x_doc.set_data(json.dumps(data_blob))
 
@@ -63,22 +63,14 @@ def add_new_entry(db, sentence_info, title, docid):
     db.replace_document(docid, x_doc)
 
 
-def permanentize_file(x_db, path, data_file, curr_docid):
-    current_title = ""
-    sentence_info = []
-
-    with open(join(path, data_file), 'r', encoding="utf-8") as f:
+def save_2_db(x_db, dir_, data_file, curr_docid):
+    with open(join(dir_, data_file), 'r', encoding="utf-8") as f:
         lines = f.readlines()
 
+        sentence_info = []
+        current_title = title = lines[0].strip('\n').split(' ', 1)[0]
         for line in lines:
             title, sentence_id, sentence = line.strip('\n').split(' ', 2)
-
-            if not sentence_id.isdigit():  # skip some incorret lines
-                continue
-
-            # if first title, then change current title.
-            if not current_title:
-                current_title = title
 
             if title != current_title:
                 # code that will add new entry into our db.
@@ -89,7 +81,10 @@ def permanentize_file(x_db, path, data_file, curr_docid):
                 current_title = title
                 sentence_info = []
 
-            sentence_info.append((int(sentence_id), sentence))
+            try:
+                sentence_info.append((int(sentence_id), sentence))
+            except (TypeError, ValueError):
+                continue
 
         if sentence_info:
             add_new_entry(x_db, sentence_info, title, curr_docid)
@@ -103,6 +98,7 @@ if __name__ == '__main__':
     CORPUS_DIR = './wiki-pages-text/'
     DATA_FILES = os.listdir(CORPUS_DIR)
     DB_PATH = './xdb/'
+    DB_NAME = 'wiki.db'
 
     # try to make a db in pwd
     try:
@@ -114,7 +110,7 @@ if __name__ == '__main__':
 
     START = time()
     with closing(xapian.WritableDatabase(
-            join(DB_PATH, 'wiki.db'),
+            join(DB_PATH, DB_NAME),
             xapian.DB_CREATE_OR_OPEN)
     ) as x_db:
 
@@ -122,6 +118,6 @@ if __name__ == '__main__':
         for data_file in tqdm(DATA_FILES):
             if not data_file.endswith('.txt'):
                 continue
-            curr_docid = permanentize_file(x_db, CORPUS_DIR, data_file, curr_docid)
+            curr_docid = save_2_db(x_db, CORPUS_DIR, data_file, curr_docid)
 
     print("took", time() - START, "seconds to finish")

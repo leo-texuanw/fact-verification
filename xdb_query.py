@@ -16,6 +16,8 @@ def _get_query(querystring, prefix=None):
     if not prefix:
         query = queryparser.parse_query(querystring)
     elif prefix.lower() == "title":
+        query = queryparser.parse_query(querystring, 0, 'XS')
+    elif prefix.lower() == "title_tokens":
         query = queryparser.parse_query(querystring, 0, 'S')
     elif prefix.lower() == 'text':
         query = queryparser.parse_query(querystring, 0, 'XT')
@@ -53,9 +55,9 @@ def search(db_path, query_str, prefix=None, offset=0, pagesize=5):
 def print_matches(matches):
     for rank, doc_id, match in matches:
         fields = json.loads(match)
-        print("Rank: {rank:}\t Doc ID: #{docid:3d}\t Title: {title:}\n {sentences:} \n".format(
+        print("Rank: {rank:}\t Docid: {doc_id:} \t Title: {title:} \n {sentences:} \n".format(
             rank=rank,
-            docid=doc_id,
+            doc_id=doc_id,
             title=fields.get('title', ''),
             sentences=fields.get('sentences', ''),
         ))
@@ -63,8 +65,8 @@ def print_matches(matches):
 
 if __name__ == '__main__':
     DB_PATH = './xdb/wiki.db'
-    prefix = 'title'  # options: ['title', 'text', None]
+    prefix = 'title'  # options: ['title', 'title_tokens', 'text', None]
     query_str = "Kevin Kraus"
-    matches = search(DB_PATH, query_str, prefix)
 
+    matches = search(DB_PATH, query_str, prefix)
     print_matches(matches)
