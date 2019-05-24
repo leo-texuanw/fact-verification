@@ -2,7 +2,37 @@
 # coding: utf-8
 
 import json
+from os.path import join
+
 import xapian
+
+
+def get_document(db_path, docid):
+    db = xapian.Database(db_path)
+    return db.get_document(docid).get_data()
+
+
+def get_titles_dict(db_path, output_titles):
+    titles = {}
+    db = xapian.Database(db_path)
+
+    titles_file = open(output_titles, 'w')
+
+    postlist = db.postlist("")
+    while True:
+        try:
+            item = next(postlist)  # next(pos, None)
+        except StopIteration:
+            print(item.docid)
+            break
+        else:
+            title = json.loads((db.get_document(item.docid).get_data())).get('title', "")
+            titles[title] = item.docid
+            titles_file.write("{}\t{}\n".format(item.docid, title))
+
+    titles_file.close()
+
+    return titles
 
 
 def _get_query(querystring, prefix=None):
@@ -65,8 +95,15 @@ def print_matches(matches):
 
 if __name__ == '__main__':
     DB_PATH = './xdb/wiki.db'
-    prefix = 'title'  # options: ['title', 'title_tokens', 'text', None]
-    query_str = "Kevin Kraus"
+    OBJECTS = './objects/'
+    TITLES = 'xapian_titles_dict'
+    OUTPUT_TITLES = join(OBJECTS, TITLES)
+
+    prefix = 'title_tokens'  # options: ['title', 'title_tokens', 'text', None]
+    query_str = "Kevin Kraus"  # Selina
 
     matches = search(DB_PATH, query_str, prefix)
     print_matches(matches)
+    # titles = get_titles_dict(DB_PATH, OUTPUT_TITLES)
+
+    # print(get_document(DB_PATH, 104543))

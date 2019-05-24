@@ -58,6 +58,7 @@ def add_new_entry(db, sentence_info, title, docid):
     data_blob['title'] = title
     data_blob['sentences'] = dict(sentence_info)
     x_doc.set_data(json.dumps(data_blob))
+    x_doc.add_boolean_term(title)
 
     # save
     db.replace_document(docid, x_doc)
