@@ -8,18 +8,23 @@ from functools import partial, reduce
 
 import pandas as pd
 import numpy as np
+import pickle
 
 TOOL_PATH = './tools'
 GLOVE_840 = 'glove.840B.300d.txt'
+GLOVE_PERSISTENT_PATH = "glove.sav"
+
+
+def load_glove_persistent(path=GLOVE_PERSISTENT_PATH):
+    return pickle.load(open(path, "rb"))
 
 
 def load_glove(path):
-    return pd.read_csv(
-            path,
-            sep=" ",
-            index_col=0,
-            header=None,
-            quoting=csv.QUOTE_NONE)
+    return pd.read_csv(path,
+                       sep=" ",
+                       index_col=0,
+                       header=None,
+                       quoting=csv.QUOTE_NONE)
 
 
 def get_word_vec(word, glove):
@@ -27,7 +32,7 @@ def get_word_vec(word, glove):
 
     try:
         return glove.loc[word].as_matrix()
-    except KeyError as _e:
+    except KeyError:
         return glove.loc['unk'].as_matrix()
 
 
