@@ -42,7 +42,7 @@ indexer.index_text(s1)
 indexer.index_text(t1, 1, "S")
 
 # save data to document
-x_doc.set_data(json.dumps(data, encoding = 'utf8'))
+x_doc.set_data(json.*s(data, encoding = 'utf8'))
 # write into xapian database
 # works like a default dictionary, if there is an existing document with that id, 
 # it will update, otherwise it will insert. 

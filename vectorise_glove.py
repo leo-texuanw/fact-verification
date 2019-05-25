@@ -8,10 +8,13 @@ from functools import partial, reduce
 
 import pandas as pd
 import numpy as np
-
+import pickle
 TOOL_PATH = './tools'
 GLOVE_840 = 'glove.840B.300d.txt'
+GLOVE_PERSISTENT_PATH = "glove.sav"
 
+def load_glove_persistent(path = GLOVE_PERSISTENT_PATH):
+    return pickle.load( open(path, "rb" ))
 
 def load_glove(path):
     return pd.read_csv(
@@ -20,7 +23,6 @@ def load_glove(path):
             index_col=0,
             header=None,
             quoting=csv.QUOTE_NONE)
-
 
 def get_word_vec(word, glove):
     """ get word embedding of a word """
@@ -35,6 +37,7 @@ def words_avg_embedding(words: list, glove):
     """ get average word embedding of a list of words """
 
     word_embeddings = map(partial(get_word_vec, glove=glove), words)
+    #print(list(word_embeddings))
     sum_words_embedding = reduce(np.add, word_embeddings)
     return sum_words_embedding / len(words)
 
