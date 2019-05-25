@@ -8,8 +8,19 @@ import xapian
 
 
 def get_document(db_path, docid):
+    """ to use the returned doc do: doc.get_data() """
+
     db = xapian.Database(db_path)
-    return db.get_document(docid).get_data()
+    return db.get_document(docid)
+
+
+def get_doc_by_title(db_path, title):
+    matches = search(db_path, title, prefix='title')
+    for _rank, doc_id, match in matches:
+        doc = json.loads(match)
+        if doc.get('title', '') == title:
+            return doc
+    return ""
 
 
 def get_titles_dict(db_path, output_titles):

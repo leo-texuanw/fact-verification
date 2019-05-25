@@ -1,14 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
-
-
 # !git clone 
-
-
-# In[2]:
-
 
 # coding=utf-8
 # Copyright 2018 The Google AI Language Team Authors.
@@ -42,9 +35,9 @@ import logging
 from bert import modeling
 from bert import optimization
 from bert import tokenization
-# %load ../bert/modeling.py
-# %load ../bert/optimization.py
-# %load ../bert/tokenization.py
+
+# For using GPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 stime = strftime("%m%d%H%M", gmtime())
 
@@ -63,16 +56,13 @@ log = logging.getLogger('tensorflow')
 log.setLevel(logging.DEBUG)
 
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-fh = logging.FileHandler('tensorflow_{}.log'.format(stime))
-fh.setLevel(logging.DEBUG)
-fh.setFormatter(formatter)
-log.addHandler(fh)
-
-# In[3]:
+# fh = logging.FileHandler('tensorflow_{}.log'.format(stime))
+# fh.setLevel(logging.DEBUG)
+# fh.setFormatter(formatter)
+# log.addHandler(fh)
 
 
 flags = tf.flags
-
 FLAGS = flags.FLAGS
 
 # Required parameters
@@ -99,10 +89,10 @@ flags.DEFINE_string(
     "output_dir", output_path,
     "The output directory where the model checkpoints will be written.")
 
-## Other parameters
-
+# Other parameters
 flags.DEFINE_string(
-    "init_checkpoint", './bert/pre_trained_models/uncased_L-12_H-768_A-12/bert_model.ckpt.index',
+    "init_checkpoint",
+    './bert/pre_trained_models/uncased_L-12_H-768_A-12/bert_model.ckpt',
     "Initial checkpoint (usually from a pre-trained BERT model).")
 
 flags.DEFINE_bool(
@@ -171,9 +161,6 @@ tf.flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
 flags.DEFINE_integer(
     "num_tpu_cores", 8,
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
-
-
-# In[ ]:
 
 
 class InputExample(object):
@@ -276,7 +263,7 @@ class FactProcessor(DataProcessor):
   def get_train_examples(self, data_dir):
     """See base class."""
     return self._create_examples(
-        self._read_json(os.path.join(data_dir, "random-devset.json")), "train")
+        self._read_json(os.path.join(data_dir, "devset.json")), "train")
 
   def get_dev_examples(self, data_dir):
     """See base class."""
@@ -308,9 +295,6 @@ class FactProcessor(DataProcessor):
       examples.append(
           InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
     return examples
-
-
-# In[ ]:
 
 
 def convert_single_example(ex_index, example, label_list, max_seq_length,
@@ -915,10 +899,3 @@ if __name__ == "__main__":
   flags.mark_flag_as_required("bert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()
-
-
-# In[ ]:
-
-
-
-
