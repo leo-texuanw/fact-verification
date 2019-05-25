@@ -62,19 +62,9 @@ def add_new_entry(db, sentence_info, title, docid):
     # save
     db.replace_document(docid, x_doc)
 
-<<<<<<< Updated upstream
 
 def save_2_db(x_db, dir_, data_file, curr_docid):
     with open(join(dir_, data_file), 'r', encoding="utf-8") as f:
-=======
-# TODO: maybe we are not adding properly?
-def permanentize_file(x_db, path, data_file, curr_docid):
-    """ add a new entry"""
-    current_title = ""
-    sentence_info = []
-
-    with open(join(path, data_file), 'r', encoding="utf-8") as f:
->>>>>>> Stashed changes
         lines = f.readlines()
 
         sentence_info = []
