@@ -16,38 +16,71 @@ def get_document(db_path, docid):
 
 def get_doc_by_title(db_path, title):
     matches = search(db_path, title, prefix='title')
+
     for _rank, doc_id, match in matches:
         doc = json.loads(match)
         if doc.get('title', '') == title:
             return doc
+
     return ""
 
 
-def get_titles_dict(db_path, output_titles):
+def save_titles_dict(db_path, output_titles):
+    """ save all documents in db into `output_titles`
+        with format: docid\ttitle
+    """
+
     titles = {}
     db = xapian.Database(db_path)
 
-    titles_file = open(output_titles, 'w')
+    with open(output_titles, 'w') as titles_file:
 
-    postlist = db.postlist("")
-    while True:
-        try:
-            item = next(postlist)  # next(pos, None)
-        except StopIteration:
-            print(item.docid)
-            break
-        else:
-            title = json.loads((db.get_document(item.docid).get_data())).get('title', "")
-            titles[title] = item.docid
-            titles_file.write("{}\t{}\n".format(item.docid, title))
-
-    titles_file.close()
+        postlist = db.postlist("")
+        while True:
+            try:
+                item = next(postlist)  # next(pos, None)
+            except StopIteration:
+                print(item.docid)
+                break
+            else:
+                doc = db.get_document(item.docid).get_data()
+                title = json.loads(doc).get('title', "")
+                titles[title] = item.docid
+                titles_file.write("{}\t{}\n".format(item.docid, title))
 
     return titles
 
 
-def _get_query(querystring, prefix=None):
+def load_xapian_titles(path, f_title):
+    """ load saved titles as a dictionary """
 
+    titles = {}
+
+    with open(join(path, f_title), 'r') as f:
+        for line in f:
+            doc_id, title = line.strip('\n').split('\t')
+            titles[title] = doc_id
+    print("the number of titles:", len(titles))
+
+    # def title_without_parentheses(title):
+    #     return re.sub('-LRB-.*-RRB-', '', title).strip('_')
+
+    # without_parentheses = {}
+    # for title, tid in titles.items():
+    #     tit = title_without_parentheses(title)
+    #     if title != tit:
+    #         without_parentheses[tit] = tid
+
+    # titles.update(without_parentheses)
+
+    # print("get new processed titles without parentheses:",
+    #       len(without_parentheses))
+    # print("after adding titles without parentheses:", len(titles))
+
+    return titles
+
+
+def _gen_query(querystring, prefix=None):
     # Set up a QueryParser with a stemmer and suitable prefixes
     queryparser = xapian.QueryParser()
     queryparser.set_stemmer(xapian.Stem("en"))
@@ -63,7 +96,7 @@ def _get_query(querystring, prefix=None):
     elif prefix.lower() == 'text':
         query = queryparser.parse_query(querystring, 0, 'XT')
     else:
-        print("WARNING:", prefix, "not match!")
+        print("[WARNING]:", prefix, "not match!")
         query = queryparser.parse_query(querystring)
 
     return query
@@ -78,7 +111,7 @@ def search(db_path, query_str, prefix=None, offset=0, pagesize=5):
     db = xapian.Database(db_path)
 
     # get query
-    query = _get_query(query_str, prefix)
+    query = _gen_query(query_str, prefix)
 
     # Use an Enquire object on the database to run the query
     enquire = xapian.Enquire(db)
@@ -115,6 +148,9 @@ if __name__ == '__main__':
 
     matches = search(DB_PATH, query_str, prefix)
     print_matches(matches)
-    # titles = get_titles_dict(DB_PATH, OUTPUT_TITLES)
+    # titles = save_titles_dict(DB_PATH, OUTPUT_TITLES)
 
     # print(get_document(DB_PATH, 104543))
+
+    title = 'Damon_Albarn'
+    print(get_doc_by_title(DB_PATH, title))

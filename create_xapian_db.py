@@ -75,7 +75,7 @@ def save_2_db(x_db, dir_, data_file, curr_docid):
 
             if title != current_title:
                 # code that will add new entry into our db.
-                add_new_entry(x_db, sentence_info, title, curr_docid)
+                add_new_entry(x_db, sentence_info, current_title, curr_docid)
 
                 # code that resets some variables for the next document.
                 curr_docid += 1

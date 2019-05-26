@@ -4,12 +4,11 @@
 from os.path import join
 import re
 import json
-import pickle
+from typing import List
 from time import time
 from tqdm import tqdm
 
 import spacy
-from difflib import SequenceMatcher
 
 from allennlp import pretrained
 from allennlp.models.archival import load_archive
@@ -39,27 +38,19 @@ def get_constituency_parser():
     return Predictor.from_archive(archive, 'constituency-parser')
 
 
-def get_decomposable_attention():
-    archive = load_archive(
-        "https://s3-us-west-2.amazonaws.com/allennlp/models/decomposable-attention-elmo-2018.02.19.tar.gz")
-
-    return Predictor.from_archive(archive, 'decomposable-attention')
-
-
-def similar(a, b):
-    return SequenceMatcher(None, a, b).ratio()
-
-
 def get_constituency_parsing_NPs(parse_result, join_with="_", NPs=set()):
+    """ get None Phrases by by hierplane_tree from constituency parsing """
+
     # TODO: 
     # 1. everything before verb as a NP
     # 2. deal with different encoding
+    # 3. -COLON- ?
 
     NP = []
-
-    # by hierplane_tree
     hierplane_tree_children = parse_result['hierplane_tree']['root']['children']
+
     for child in hierplane_tree_children:
+        # get continuous NP and HYPH as a NP
         if child['nodeType'] in ['NP', 'HYPH']:
             NP += child['word'].split()
         elif NP:
@@ -75,15 +66,15 @@ def get_constituency_parsing_NPs(parse_result, join_with="_", NPs=set()):
 def get_customised_NPs(parse_result, join_with="_", NPs=set()):
     """ get NPs by customised rules according to POS """
 
-    ignore_list = ['-LRB-', '-RRB-']
     NP = []
+    remain_tag_list = ['-LRB-', '-RRB-']
     pos_tags = parse_result['pos_tags']
     tokens = parse_result['tokens']
 
     for id_, tag in enumerate(pos_tags):
         if tag in ['NP', 'NNP', 'HYPH']:
             NP.append(tokens[id_])
-        elif tag in ignore_list:
+        elif tag in remain_tag_list:
             NP.append(tag)
         elif NP:
             NPs.add(join_with.join(NP))
@@ -97,39 +88,12 @@ def get_customised_NPs(parse_result, join_with="_", NPs=set()):
     return NPs
 
 
-def title_without_parentheses(title):
-    return re.sub('-LRB-.*-RRB-', '', title).strip('_')
-
-
-def load_xapian_titles(path, f_title):
-    titles = {}
-    with open(join(path, f_title), 'r') as f:
-        for line in f:
-            doc_id, title = line.strip('\n').split('\t')
-            titles[title] = doc_id
-    print("the number of titles:", len(titles))
-
-    # without_parentheses = {}
-    # for title, tid in titles.items():
-    #     tit = title_without_parentheses(title)
-    #     if title != tit:
-    #         without_parentheses[tit] = tid
-
-    # titles.update(without_parentheses)
-
-    # print("get new processed titles without parentheses:",
-    #       len(without_parentheses))
-    print("after adding titles without parentheses:", len(titles))
-
-    return titles
-
-
 def NPs2titles(NPs, titles_dict):
     # TODO: search unmatched in xapian
     return [titles_dict[NP] for NP in NPs if NP in titles_dict]
 
 
-def result_stat(evidence, NPs, found_evidence):
+def result_stat(evidence, NPs):
     missing = []
     matched_titles = set()
 
@@ -140,12 +104,10 @@ def result_stat(evidence, NPs, found_evidence):
                 got = True
                 matched_titles.add(evi)
                 break
-        if got:
-            found_evidence += 1
-        else:
+        if not got:
             missing.append(evi)
 
-    return found_evidence, list(matched_titles), missing
+    return list(matched_titles), missing
 
 
 def log_missing(missing, record, NPs, parse_result):
@@ -156,17 +118,10 @@ def log_missing(missing, record, NPs, parse_result):
         print('    POS:', parse_result['pos_tags'])
 
 
-def log_performance(index, true_evidence, found_evidence, predicted_evidence):
-    print(index, ":")
-    print(true_evidence, found_evidence, predicted_evidence)
-    print("accuracy:", found_evidence / true_evidence)
-    print("recall:", found_evidence / predicted_evidence)
-
-
 def get_sents(doc_ids, db_path):
     candidates = []
-    for doc_id in set(doc_ids):
 
+    for doc_id in set(doc_ids):
         match = xdb_query.get_document(db_path, int(doc_id))
         match = json.loads(match.get_data())
 
@@ -213,39 +168,75 @@ def sent_selection_entail(attention, claim, doc_ids, db_path, topn=10):
     return [sent[1] for sent in sents[:topn]]
 
 
-def get_doc_ids(titles, matched_titles):
-    return [titles[title] for title in matched_titles]
+def sent_selection_esim(esim, claim, doc_ids, db_path, topn=10):
+    candidates = get_sents(doc_ids, db_path)
+
+    sents = []
+    for title, sent_id, sent in candidates:
+        if not sent:
+            continue
+
+        # [entailment, contradiction, neutral]
+        probs = esim.predict(premise=sent, hypothesis=claim)['label_probs']
+        # if max(probs[0:2]) > 0.4:  # TODO
+        sents.append((max(probs[0:2]), [title, int(sent_id)]))
+    sents.sort(reverse=True)
+    return [sent[1] for sent in sents[:topn]]
+
+
+def get_doc_id(d_titles: dict, title: str):
+    try:
+        doc_id = int(d_titles[title])
+    except KeyError:
+        # e.g. 'Simón_Bolívar'
+        print("title:", title, "not found")
+        doc_id = None
+
+    return doc_id
+
+
+def get_doc_ids(d_titles: dict, matched_titles: List[str]):
+    doc_ids = []
+
+    for title in matched_titles:
+        doc_id = get_doc_ids(title)
+        if doc_id:
+            doc_ids.append(doc_id)
+
+    return doc_ids
 
 
 DIR = './objects'
-TITLES = 'xapian_titles'  # 'titles_gensim_70.pkl'
-DATA_SET = 'subdevset.json'  # './devset.json'
-OUTPUT_FILE = './output_devset_title_test.json'
+TITLES = 'xapian_titles_dict'
 DB_PATH = './xdb/wiki.db'
+
+# CHECK SETTINGS BEFORE EVERY TIME
+DATA_SET = './subdevset.json'  # 'test-unlabelled.json'
+OUTPUT_FILE = 'forstep3.json'  # './my_test5.json'
+ON_TEST = True
 
 
 if __name__ == '__main__':
     """ Calc doc retrieval accuracy """
 
     start = time()
-    # print("loading embedding...")
-    # nlp = spacy.load('en_vectors_web_lg')  # 300-dim GloVe vectors
-    # TODO: change num_vector?
-    # print("finished loading embedding...")
 
-    titles_dict = load_xapian_titles(DIR, TITLES)
+    print("loading embedding...")
+    nlp = spacy.load('en_vectors_web_lg')  # 300-dim GloVe vectors
+    # TODO: change num_vector?
+    print("finished loading embedding...")
+
+    titles_dict = xdb_query.load_xapian_titles(DIR, TITLES)
     predictor = get_constituency_parser()
 
-    attention = pretrained.decomposable_attention_with_elmo_parikh_2017()
+    # attention = pretrained.decomposable_attention_with_elmo_parikh_2017()
+    # esim = pretrained.esim_nli_with_elmo_chen_2017()
 
     with open(DATA_SET, 'r') as data_set_f:
         data_set = json.load(data_set_f)
 
-    found_evidence, predicted_evidence, true_evidence = 0, 0, 0
     output_content, index = {}, 1
     for id_, record in tqdm(data_set.items()):
-        evidence = list(map(lambda x: x[0], record['evidence']))
-        true_evidence += len(evidence)
 
         parse_result = predictor.predict_json({"sentence": record['claim']})
         NPs = get_constituency_parsing_NPs(parse_result, NPs=set())
@@ -253,23 +244,24 @@ if __name__ == '__main__':
 
         doc_ids = NPs2titles(NPs, titles_dict)
 
-        found_evidence, matched_titles, missing = result_stat(evidence, NPs, found_evidence)  # TODO
-        predicted_evidence += len(doc_ids)
+        if not ON_TEST:
+            evidence = list(map(lambda x: x[0], record['evidence']))
+            matched_titles, missing = result_stat(evidence, NPs)
+            log_missing(missing, record, NPs, parse_result)
 
-        # sents = sent_selection_sim(nlp, record['claim'], doc_ids, DB_PATH, 10)
-        sents = sent_selection_entail(attention, record['claim'], doc_ids, DB_PATH, 15)
+        sents = sent_selection_sim(nlp, record['claim'], doc_ids, DB_PATH, 5)
+        # sents = sent_selection_esim(esim, record['claim'], doc_ids, DB_PATH, 10)
+        # sents = sent_selection_entail(attention,
+        #                               record['claim'],
+        #                               doc_ids,
+        #                               DB_PATH,
+        #                               15)
         record['evidence'] = sents
-        log_missing(missing, record, NPs, parse_result)
+
         # record['evidence'] = [[title, 0] for title in matched_titles]
         output_content[id_] = record
 
-        if index % 500 == 0:
-            log_performance(index,
-                            true_evidence,
-                            found_evidence,
-                            predicted_evidence)
         index += 1
-
 
     print("doc retrieval with titles takes",
           time() - start,
