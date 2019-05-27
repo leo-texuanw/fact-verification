@@ -53,7 +53,8 @@ if __name__ == '__main__':
         for title, sent_id in l_evidence:
             title_2_sent_ids[title] = title_2_sent_ids.get(title, []) + [sent_id]
         else:
-            # label "not enough info" has no evidence
+            # label "NOT ENOUGH INFO" has no evidence,
+            # so search the most relevent doc by claim according to xapian db
             match = xdb_query.search(Args.DB_PATH, record['claim'], pagesize=1)[0]
 
         if l_evidence:
