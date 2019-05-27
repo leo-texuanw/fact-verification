@@ -5,6 +5,7 @@ import json
 from os.path import join
 
 import xapian
+from constants import Args
 
 
 def get_document(db_path, docid):
@@ -51,6 +52,10 @@ def save_titles_dict(db_path, output_titles):
     return titles
 
 
+# def title_without_parentheses(title):
+#     return re.sub('-LRB-.*RRB-', '', title).strip('_')
+
+
 def load_xapian_titles(path, f_title):
     """ load saved titles as a dictionary """
 
@@ -62,8 +67,6 @@ def load_xapian_titles(path, f_title):
             titles[title] = doc_id
     print("the number of titles:", len(titles))
 
-    # def title_without_parentheses(title):
-    #     return re.sub('-LRB-.*-RRB-', '', title).strip('_')
 
     # without_parentheses = {}
     # for title, tid in titles.items():
@@ -138,19 +141,16 @@ def print_matches(matches):
 
 
 if __name__ == '__main__':
-    DB_PATH = './xdb/wiki.db'
-    OBJECTS = './objects/'
-    TITLES = 'xapian_titles_dict'
-    OUTPUT_TITLES = join(OBJECTS, TITLES)
+    OUTPUT_TITLES = join(Args.OBJECTS, Args.TITLES)
 
     prefix = 'title_tokens'  # options: ['title', 'title_tokens', 'text', None]
     query_str = "Kevin Kraus"  # Selina
 
-    matches = search(DB_PATH, query_str, prefix)
+    matches = search(Args.DB_PATH, query_str, prefix)
     print_matches(matches)
-    # titles = save_titles_dict(DB_PATH, OUTPUT_TITLES)
+    # titles = save_titles_dict(Args.DB_PATH, OUTPUT_TITLES)
 
-    # print(get_document(DB_PATH, 104543))
+    # print(get_document(Args.DB_PATH, 104543))
 
     title = 'Damon_Albarn'
-    print(get_doc_by_title(DB_PATH, title))
+    print(get_doc_by_title(Args.DB_PATH, title))

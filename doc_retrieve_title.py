@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from os.path import join
 import re
 import json
 from typing import List
@@ -15,6 +14,7 @@ from allennlp.models.archival import load_archive
 from allennlp.predictors import Predictor
 
 import xdb_query
+from constants import Args
 
 
 def get_constituency_parser():
@@ -206,14 +206,71 @@ def get_doc_ids(d_titles: dict, matched_titles: List[str]):
     return doc_ids
 
 
-DIR = './objects'
-TITLES = 'xapian_titles_dict'
-DB_PATH = './xdb/wiki.db'
+def IR(sent_select_method):
+    if sent_select_method == 'esim':
+        esim = pretrained.esim_nli_with_elmo_chen_2017()
+    elif sent_select_method == 'entail':
+        attention = pretrained.decomposable_attention_with_elmo_parikh_2017()
+    else:
+        print("loading embedding...")
+        nlp = spacy.load('en_vectors_web_lg')  # 300-dim GloVe vectors
+        # TODO: change num_vector?
+        print("finished loading embedding...")
+
+    titles_dict = xdb_query.load_xapian_titles(Args.OBJECTS, Args.TITLES)
+    predictor = get_constituency_parser()
+
+    with open(DATA_SET, 'r') as data_set_f:
+        data_set = json.load(data_set_f)
+
+    num_sents = 1
+    print("num sents selected", num_sents)
+    output_content = {}
+    for id_, record in tqdm(data_set.items()):
+        parse_result = predictor.predict_json({"sentence": record['claim']})
+
+        NPs = get_constituency_parsing_NPs(parse_result, NPs=set())
+        # NPs = get_customised_NPs(parse_result, NPs=NPs)
+
+        doc_ids = NPs2titles(NPs, titles_dict)
+
+        if Args.LOG_MISSING_DOCS:
+            evidence = list(map(lambda x: x[0], record['evidence']))
+            matched_titles, missing = result_stat(evidence, NPs)
+            log_missing(missing, record, NPs, parse_result)
+
+        # Sentence selection
+        if sent_select_method == 'esim':
+            sents = sent_selection_esim(esim,
+                                        record['claim'],
+                                        doc_ids,
+                                        DB_PATH,
+                                        num_sents)
+        elif sent_select_method == 'entail':   # texual entailment
+            # not very well
+            sents = sent_selection_entail(attention,
+                                          record['claim'],
+                                          doc_ids,
+                                          Args.DB_PATH,
+                                          num_sents)
+        else:                                   # similarity
+            sents = sent_selection_sim(nlp,
+                                       record['claim'],
+                                       doc_ids,
+                                       Args.DB_PATH,
+                                       num_sents)  # 1 sent is the best
+
+        record['evidence'] = sents
+
+        # record['evidence'] = [[title, 0] for title in matched_titles]
+        output_content[id_] = record
+
+    return output_content
+
 
 # CHECK SETTINGS BEFORE EVERY TIME
-DATA_SET = './subdevset.json'  # 'test-unlabelled.json'
-OUTPUT_FILE = 'forstep3.json'  # './my_test5.json'
-ON_TEST = True
+DATA_SET = './subdevset.json'       # 'test-unlabelled.json'
+OUTPUT_FILE = './mysubdevset.json'  # 'forstep3.json'
 
 
 if __name__ == '__main__':
@@ -221,47 +278,9 @@ if __name__ == '__main__':
 
     start = time()
 
-    print("loading embedding...")
-    nlp = spacy.load('en_vectors_web_lg')  # 300-dim GloVe vectors
-    # TODO: change num_vector?
-    print("finished loading embedding...")
-
-    titles_dict = xdb_query.load_xapian_titles(DIR, TITLES)
-    predictor = get_constituency_parser()
-
-    # attention = pretrained.decomposable_attention_with_elmo_parikh_2017()
-    # esim = pretrained.esim_nli_with_elmo_chen_2017()
-
-    with open(DATA_SET, 'r') as data_set_f:
-        data_set = json.load(data_set_f)
-
-    output_content, index = {}, 1
-    for id_, record in tqdm(data_set.items()):
-
-        parse_result = predictor.predict_json({"sentence": record['claim']})
-        NPs = get_constituency_parsing_NPs(parse_result, NPs=set())
-        NPs = get_customised_NPs(parse_result, NPs=NPs)
-
-        doc_ids = NPs2titles(NPs, titles_dict)
-
-        if not ON_TEST:
-            evidence = list(map(lambda x: x[0], record['evidence']))
-            matched_titles, missing = result_stat(evidence, NPs)
-            log_missing(missing, record, NPs, parse_result)
-
-        sents = sent_selection_sim(nlp, record['claim'], doc_ids, DB_PATH, 5)
-        # sents = sent_selection_esim(esim, record['claim'], doc_ids, DB_PATH, 10)
-        # sents = sent_selection_entail(attention,
-        #                               record['claim'],
-        #                               doc_ids,
-        #                               DB_PATH,
-        #                               15)
-        record['evidence'] = sents
-
-        # record['evidence'] = [[title, 0] for title in matched_titles]
-        output_content[id_] = record
-
-        index += 1
+    sent_select_method = 'sim'  # ['sim', 'esim', 'entail']
+    print("sent select method:", sent_select_method)
+    output_content = IR(sent_select_method)
 
     print("doc retrieval with titles takes",
           time() - start,

@@ -24,7 +24,7 @@ from __future__ import division
 from __future__ import print_function
 
 import collections
-import json
+import csv
 import os
 from os.path import join
 from time import gmtime, strftime
@@ -233,28 +233,13 @@ class DataProcessor(object):
     raise NotImplementedError()
 
   @classmethod
-  def _read_json(cls, input_file):
+  def _read_tsv(cls, input_file):
     """Read train/dev json file"""
     with tf.gfile.Open(input_file, "r") as f:
-      reader = json.load(f)
+      reader = csv.reader(f, delimiter='\t')
       lines = []
-      for id_, line in reader.items():
-        evidence = "a"
-        if line['label'] not in ["SUPPORTS", "REFUTES", "NOT ENOUGH INFO"]:
-            print (id_,'errorr')
-        else:
-            lines.append([id_, line['label'], line['claim'], evidence])
-      return lines
-
-  @classmethod
-  def _read_test_json(cls, input_file):
-    """Read test json file"""
-    with tf.gfile.Open(input_file, "r") as f:
-      reader = json.load(f)
-      lines = []
-      for id_, line in reader.items():
-        evidence = "a"
-        lines.append([id_, 'label', line['claim'], evidence])
+      for id_, label, claim, evidence in reader:
+        lines.append([id_, label, claim, evidence])
       return lines
 
 class FactProcessor(DataProcessor):
@@ -263,17 +248,17 @@ class FactProcessor(DataProcessor):
   def get_train_examples(self, data_dir):
     """See base class."""
     return self._create_examples(
-        self._read_json(os.path.join(data_dir, "devset.json")), "train")
+        self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
   def get_dev_examples(self, data_dir):
     """See base class."""
     return self._create_examples(
-        self._read_json(os.path.join(data_dir, "devset.json")), "dev")
+        self._read_tsv(os.path.join(data_dir, "my_dev_sim1.tsv")), "dev")
 
   def get_test_examples(self, data_dir):
     """See base class."""
     return self._create_examples(
-        self._read_test_json(os.path.join(data_dir, "test-unlabelled.json")), "test")
+        self._read_tsv(os.path.join(data_dir, "my_test_sim1.tsv")), "test")
 
   def get_labels(self):
     """See base class."""
@@ -283,8 +268,7 @@ class FactProcessor(DataProcessor):
     """Creates examples for the training and dev sets."""
     examples = []
     for (i, line) in enumerate(lines):
-      if i == 0:
-        continue
+      # if i == 0: continue
       guid = "%s-%s" % (set_type, tokenization.convert_to_unicode(line[0]))
       text_a = tokenization.convert_to_unicode(line[2])
       text_b = tokenization.convert_to_unicode(line[3])
