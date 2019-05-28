@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+# Functions about xapian, for searching and write down all documents titles
+
 import json
 from os.path import join
 
@@ -64,9 +66,8 @@ def load_xapian_titles(path, f_title):
     with open(join(path, f_title), 'r') as f:
         for line in f:
             doc_id, title = line.strip('\n').split('\t')
-            titles[title] = doc_id
+            titles[title] = int(doc_id)
     print("the number of titles:", len(titles))
-
 
     # without_parentheses = {}
     # for title, tid in titles.items():
