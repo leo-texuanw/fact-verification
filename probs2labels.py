@@ -66,7 +66,9 @@ if __name__ == '__main__':
     """
     f_pred_probs = sys.argv[1]
     f_test = sys.argv[2]
-    output_file = "submit_bert_sent_n_label_erase.json"
+    output_file = "testset_after_bert_labelling.json"
+
+    # CHANGE THIS FLAG for task sent as `False`
     FOR_LABLE = True  # specify this run is for result from labeling or not
 
     probs = pd.read_csv(f_pred_probs, sep='\t', header=None)

@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from constants import Args
 import xdb_query
-import doc_retrieve_title as drt
+import doc_retrieval as dr
 
 
 def get_sents_from_doc(doc, sent_ids, lines):
@@ -27,7 +27,7 @@ def get_content_from_db(d_titles, title_2_sent_ids, transform4label):
 
     for title, sent_ids in title_2_sent_ids.items():
         # get title's docid in db
-        docid = drt.get_doc_id(d_titles, title)
+        docid = dr.get_doc_id(d_titles, title)
 
         if docid:
             # get doc in db
@@ -54,6 +54,8 @@ def get_content_from_db(d_titles, title_2_sent_ids, transform4label):
 
 if __name__ == '__main__':
     d_titles = xdb_query.load_xapian_titles(Args.OBJECTS, Args.TITLES)
+
+    # CHANGE THIS FLAG to be false for sentence selection
     idx, transform4label = 0, True
 
     fin = open(sys.argv[1], 'r')
