@@ -1,16 +1,16 @@
 # A Fact Verification System
 For a given claim, the system is expected to find all relevant documents in
-Wikipedia corpus, find the exact sentence(s) that SUPPORT or REFUTES the
-claim, otherwise the claim will be labeled as NOTENOUGHINFO.  
+Wikipedia corpus, find the exact sentence(s) that _SUPPORT_ or _REFUTES_ the
+claim, otherwise the claim will be labeled as _NOTENOUGHINFO_.  
 
 ## Dataset
 The dataset contains 536 millions documents in all, which has been pre-processed
 by the staff of COMP90042 at the University of Melbourne. Each row of the corpus
-follows the format [document\_title, sentence\_id, sentence\_content].  
+follows the format `[document_title, sentence_id, sentence_content]`.  
 
 The training set has around 15,000 labeled claims with its supporting or
 refusing evidence (document title and sentence id in the doc). For those labeled
-as NOTENOUGHINFO the evidence field is empty.  
+as _NOTENOUGHINFO_ the evidence field is empty.  
 
 The development set has 5001 instances with the same format as training set.  
 
@@ -26,26 +26,27 @@ ten languages including Python.
 ### Document Retrieval
 For document retrieval, we aim to match the main objects of the claim with
 titles. We use a set of hand-crafted **entity linking** rules to aquire these
-objects based on [Constituency Parsing model from
-AllenNLP](https://demo.allennlp.org/constituency-parsing). For each claim, we
-selected the noun phrases from the top level of the returned hierplane tree and
-combined with manually generated noun phrases according to sentences' part of
-speech tagging to form a candidate set of targets titles $T$. Then we filtered
-out those elements in the set $T$ that's not in document title set. All the
-remaining noun phrases in $T$ will be passed to the next stage.  
+objects based on
+[Constituency Parsing model](https://demo.allennlp.org/constituency-parsing)
+from [AllenNLP](https://allennlp.org). For each claim, we selected the noun
+phrases from the top level of the returned hierplane tree and combined with
+manually generated noun phrases according to sentences' part of speech tagging to
+form a candidate set of targets titles _T_. Then we filtered out those elements
+in the set _T_ that's not in document title set. All the remaining noun phrases
+in _T_ will be passed to the next stage.  
 
 ### Sentence Selection
 At this stage, We fine tuned a pre-trained model [BERT
 Base](https://github.com/google-research/bert) from google research for sentence
-selection. We processed all centences of documents in $T$ in a format
-[unique\_id, label, claim, sentence], so they can be fit into BERT model and be
-classified into two classes RELEVANT or IRRELEVANT. All RELEVANT centences will
+selection. We processed all sentences of documents in _T_ in a format
+`[unique_id, label, claim, sentence]`, so they can be fit into BERT model and be
+classified into two classes _RELEVANT_ or _IRRELEVANT_. All _RELEVANT_ sentences will
 be considered as evidence for the final stage.  
 
 ### Labeling
 Again, we used BERT Base for label prediction. And similar to last stage we
 concatenated all evidence of a claim and generate each claim into an example in
-the format [unique\_id, constant\_string, claim, concated\_evidence] then fit to
+the format `[unique_id, constant_string, claim, concated_evidence]` then fit to
 BERT model.  
 
 ## Result
